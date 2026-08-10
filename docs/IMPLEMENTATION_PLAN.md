@@ -180,3 +180,8 @@ the evaluation harness) via direct HTTP requests against a running
 - No automated test suite (PHPUnit/Pytest) yet — Phase 6's evaluation
   script is the only automated correctness check beyond manual smoke
   testing. Worth adding before treating this as submission-ready.
+- Still only mock/fake store data — see `docs/ENRICHMENT_ROADMAP.md` for
+  the plan to add real stores (Daraz etc.) via affiliate feeds, and for
+  the product-matching algorithm (`ProductMatchingService`) and provider
+  architecture (`StoreProviderInterface`) that were added specifically to
+  make that a drop-in change later rather than a rewrite.

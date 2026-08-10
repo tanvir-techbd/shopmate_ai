@@ -92,6 +92,25 @@ held-out set (`eval/queries.json`) and writes `eval/results.json`. See
 `docs/IMPLEMENTATION_PLAN.md` §Phase 6 for the last recorded numbers and
 their caveats.
 
+### Trying the real multi-store matching pipeline (3 stores, algorithmic matching)
+
+`db:seed` above uses a hand-grouped 2-store dataset (kept stable for the
+eval numbers). To see the actual product-matching algorithm work out
+cross-store equivalence on its own across 3 independently-worded mock
+stores, use this instead:
+
+```bash
+cd app
+php artisan migrate:fresh          # note: no --seed
+php artisan providers:import       # ingests + matches 3 mock stores
+```
+
+Then browse the chat as usual. See `docs/ENRICHMENT_ROADMAP.md` §3 for how
+the matcher works and `/admin` for the possible-duplicates review queue
+(`php artisan products:find-duplicates` to (re-)scan). Run
+`php artisan migrate:fresh --seed` afterward to go back to the normal demo
+dataset.
+
 ### Running pieces individually (for debugging)
 
 ```bash

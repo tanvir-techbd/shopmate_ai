@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Message;
 use App\Models\Order;
+use App\Models\PossibleDuplicateProduct;
 use App\Models\Product;
 use App\Models\SearchHistory;
 use App\Models\Store;
 use App\Models\User;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
 class AdminController extends Controller
@@ -44,12 +46,38 @@ class AdminController extends Controller
             ->orderByDesc('total')
             ->get();
 
+        $duplicates = PossibleDuplicateProduct::with(['productA.prices.store', 'productB.prices.store'])
+            ->where('status', 'pending')
+            ->latest()
+            ->get();
+
         return view('admin.dashboard', [
             'stats' => $stats,
             'storeHealth' => $storeHealth,
             'recentSearches' => $recentSearches,
             'topCategories' => $topCategories,
+            'duplicates' => $duplicates,
         ]);
+    }
+
+    public function mergeDuplicate(PossibleDuplicateProduct $duplicate): RedirectResponse
+    {
+        $loserTitle = $duplicate->productB->canonical_title;
+        $winnerTitle = $duplicate->productA->canonical_title;
+
+        // Deletes productB, which cascades away this row (and any other
+        // pending pairs mentioning productB - correctly, since those
+        // comparisons are now moot).
+        $duplicate->productB->mergeInto($duplicate->productA);
+
+        return back()->with('status', "Merged \"{$loserTitle}\" into \"{$winnerTitle}\".");
+    }
+
+    public function dismissDuplicate(PossibleDuplicateProduct $duplicate): RedirectResponse
+    {
+        $duplicate->update(['status' => 'dismissed']);
+
+        return back()->with('status', 'Dismissed - not a duplicate.');
     }
 
     /**
