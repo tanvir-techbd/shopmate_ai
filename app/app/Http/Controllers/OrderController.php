@@ -19,8 +19,10 @@ class OrderController extends Controller
     }
 
     /**
-     * Show the human-confirmation step before any redirect to a store -
+     * Show the human-confirmation step before an order is recorded -
      * required by the proposal's "no unsupervised automated checkout" rule.
+     * Never redirects to the store automatically; the confirm view links
+     * out to the real listing so the user can preview it first.
      */
     public function confirm(Request $request): View
     {
@@ -37,8 +39,6 @@ class OrderController extends Controller
 
         $listing = ProductPrice::with(['product', 'store'])->findOrFail($validated['product_price_id']);
 
-        $isRealUrl = $listing->product_url && $listing->product_url !== '#';
-
         $order = Auth::user()->orders()->create([
             'product_id' => $listing->product_id,
             'store_id' => $listing->store_id,
@@ -50,12 +50,8 @@ class OrderController extends Controller
             'status' => 'confirmed_redirected',
         ]);
 
-        if ($isRealUrl) {
-            return redirect()->away($listing->product_url);
-        }
-
         return redirect()->route('orders.index')
-            ->with('status', "Order #{$order->id} confirmed. {$listing->store->name} is a demo store in this MVP catalogue, so there is no real checkout page to redirect to - a live store integration would redirect here.");
+            ->with('status', "Order #{$order->id} created for \"{$listing->product->canonical_title}\" from {$listing->store->name}. This never places or pays for anything on the store's own site - it only records the order here.");
     }
 
     public function cancel(Order $order): RedirectResponse

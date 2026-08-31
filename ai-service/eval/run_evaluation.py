@@ -14,12 +14,20 @@ Usage (from ai-service/, with the venv active and MySQL reachable):
 import json
 import math
 import re
+import sys
 from pathlib import Path
 
 from app.db import fetch_catalog
 from app.nlp import classify_intent, extract_entities
 from app.ranking import rank_products
 from app.search import hybrid_search
+
+# Windows consoles default to a legacy codepage (cp1252) that cannot encode
+# the em-dash in the summary header or the Bangla queries in queries.json.
+# The file reads/writes below already pin utf-8; do the same for stdout so
+# the table prints identically on both platforms.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 K = 5
 QUERIES_PATH = Path(__file__).parent / "queries.json"

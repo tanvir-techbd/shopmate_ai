@@ -3,15 +3,14 @@
 namespace App\Console\Commands\Concerns;
 
 use App\Models\Product;
-use App\Models\ProductPrice;
-use App\Models\Store;
-use App\Services\ProductMatchingService;
+use App\Services\ListingIngestService;
 use App\StoreProviders\StoreProviderInterface;
 
 /**
  * Shared by ImportProductsFromProviders (mock) and ImportLiveProducts
  * (real scraping) - both just fetch a different set of providers and run
- * them through the same match-and-upsert pipeline. See
+ * them through ListingIngestService's match-and-upsert pipeline (also used
+ * by LiveSearchFallbackService's on-demand single-query path). See
  * docs/ENRICHMENT_ROADMAP.md Phase A/B and Phase C-lite.
  */
 trait ImportsFromProviders
@@ -19,48 +18,20 @@ trait ImportsFromProviders
     /**
      * @param  StoreProviderInterface[]  $providers
      */
-    protected function importFromProviders(array $providers, ProductMatchingService $matcher): void
+    protected function importFromProviders(array $providers, ListingIngestService $ingest): void
     {
         $totalListings = 0;
         $totalNewProducts = 0;
 
         foreach ($providers as $provider) {
-            $store = Store::updateOrCreate(
-                ['slug' => $provider->slug()],
-                ['name' => $provider->name(), 'base_url' => $provider->baseUrl(), 'is_active' => true],
-            );
+            $store = $ingest->findOrCreateStore($provider);
 
             $listings = $provider->fetchListings();
             $this->info("{$provider->name()}: ".count($listings).' listings');
 
-            foreach ($listings as $listing) {
-                $candidates = Product::where('category', $listing['category'] ?? null)->get();
-                $productCountBefore = Product::count();
-
-                $product = $matcher->matchOrCreate($listing, $candidates);
-
-                if (Product::count() > $productCountBefore) {
-                    $totalNewProducts++;
-                } else {
-                    $this->line("  matched \"{$listing['title']}\" -> #{$product->id} {$product->canonical_title}");
-                }
-
-                ProductPrice::updateOrCreate(
-                    ['product_id' => $product->id, 'store_id' => $store->id],
-                    [
-                        'store_title' => $listing['title'],
-                        'price' => $listing['price'],
-                        'delivery_charge' => $listing['delivery_charge'],
-                        'rating' => $listing['rating'],
-                        'review_count' => $listing['review_count'],
-                        'in_stock' => $listing['in_stock'],
-                        'product_url' => $listing['product_url'] ?? '#',
-                        'last_checked_at' => now(),
-                    ],
-                );
-
-                $totalListings++;
-            }
+            $result = $ingest->ingest($store, $listings);
+            $totalListings += $result['listings'];
+            $totalNewProducts += $result['new_products'];
         }
 
         $this->newLine();

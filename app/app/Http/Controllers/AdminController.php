@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Message;
 use App\Models\Order;
 use App\Models\PossibleDuplicateProduct;
+use App\Models\PreOrderRequest;
 use App\Models\Product;
 use App\Models\SearchHistory;
 use App\Models\Store;
@@ -22,6 +23,7 @@ class AdminController extends Controller
             'stores' => Store::count(),
             'orders' => Order::count(),
             'searches' => SearchHistory::count(),
+            'pre_orders' => PreOrderRequest::count(),
             'avg_confidence' => $this->averageConfidence(),
         ];
 
@@ -33,12 +35,15 @@ class AdminController extends Controller
                 return [
                     'name' => $store->name,
                     'is_active' => $store->is_active,
+                    'origin' => $store->origin,
                     'listing_count' => $store->prices_count,
                     'last_checked' => $lastChecked,
                 ];
             });
 
         $recentSearches = SearchHistory::with('user')->latest()->limit(15)->get();
+
+        $preOrderRequests = PreOrderRequest::with('user')->latest()->limit(15)->get();
 
         $topCategories = Product::selectRaw('category, COUNT(*) as total')
             ->whereNotNull('category')
@@ -55,6 +60,7 @@ class AdminController extends Controller
             'stats' => $stats,
             'storeHealth' => $storeHealth,
             'recentSearches' => $recentSearches,
+            'preOrderRequests' => $preOrderRequests,
             'topCategories' => $topCategories,
             'duplicates' => $duplicates,
         ]);

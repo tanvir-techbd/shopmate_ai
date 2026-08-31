@@ -39,4 +39,13 @@ return [
         'url' => env('AI_SERVICE_URL', 'http://127.0.0.1:8001'),
     ],
 
+    'othoba' => [
+        // Othoba.com's own "search-only" Typesense key, embedded in their
+        // page JS for their frontend search box to call directly - a
+        // search-only key is designed to be public (read-only, rate
+        // limited), not a secret. Kept configurable here in case they
+        // rotate it. See app/StoreProviders/OthobaLiveProvider.php.
+        'typesense_key' => env('OTHOBA_TYPESENSE_KEY', 'ekdHAQFqamb1XVMxKGLouPGTcwT9Wzgz'),
+    ],
+
 ];

@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Console\Commands\Concerns\ImportsFromProviders;
-use App\Services\ProductMatchingService;
+use App\Services\ListingIngestService;
 use App\StoreProviders\OthobaLiveProvider;
 use App\StoreProviders\StoreProviderInterface;
 use Illuminate\Console\Attributes\Description;
@@ -17,9 +17,15 @@ use Illuminate\Console\Command;
  * docs/ENRICHMENT_ROADMAP.md Phase C-lite for what this covers and why
  * (e.g. Daraz specifically) it deliberately doesn't.
  *
- * Meant to run periodically in the background (see routes/console.php),
- * not on every user search - keeps search itself instant and avoids
- * hammering the source site on unpredictable user traffic.
+ * Meant to run periodically in the background (see routes/console.php) for
+ * the fixed SEED_QUERIES categories - not on every user search, which
+ * keeps the common case instant and avoids hammering the source site on
+ * unpredictable user traffic. A query outside those categories (e.g.
+ * "noodles" before it was added) is handled by a separate, narrower path
+ * instead: LiveSearchFallbackService, which only ever fires when local
+ * search already came back empty, and only does one single-query lookup
+ * for the exact thing that was typed rather than this command's whole
+ * SEED_QUERIES batch.
  */
 #[Signature('providers:import-live')]
 #[Description('Fetch real listings from live store websites and match them into canonical products.')]
@@ -27,9 +33,9 @@ class ImportLiveProducts extends Command
 {
     use ImportsFromProviders;
 
-    public function handle(ProductMatchingService $matcher): int
+    public function handle(ListingIngestService $ingest): int
     {
-        $this->importFromProviders($this->providers(), $matcher);
+        $this->importFromProviders($this->providers(), $ingest);
 
         return self::SUCCESS;
     }

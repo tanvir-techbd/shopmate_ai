@@ -1,4 +1,5 @@
 import re
+import unicodedata
 
 # Rule-based intent/entity engine. No external model calls and no GPU/large
 # model dependency, so it runs comfortably on a low-spec laptop. Swap in a
@@ -26,7 +27,11 @@ CATEGORY_SYNONYMS: dict[str, str] = {
     "juicer": "Home Appliances", "lamp": "Home Appliances",
     "shirt": "Fashion", "polo": "Fashion", "t-shirt": "Fashion", "tshirt": "Fashion",
     "band": "Wearables", "fitness band": "Wearables", "smartband": "Wearables",
-    "umbrella": "Accessories",
+    "umbrella": "Accessories", "sunglasses": "Accessories", "sunglass": "Accessories", "wallet": "Accessories",
+    "noodles": "Groceries", "noodle": "Groceries", "rice": "Groceries", "cooking oil": "Groceries",
+    "shampoo": "Personal Care", "toothpaste": "Personal Care", "perfume": "Personal Care",
+    "toy": "Toys", "toys": "Toys",
+    "saree": "Fashion", "sari": "Fashion",
 }
 
 COLOUR_WORDS: dict[str, str] = {
@@ -67,6 +72,38 @@ BUDGET_MIN_PATTERNS = [
 RATING_PATTERN = re.compile(r"(\d(?:\.\d)?)\s*\+?\s*star")
 
 
+def _is_word_char(char: str) -> bool:
+    # isalnum() covers Latin/Bangla letters and digits; Bangla vowel signs
+    # and the virama (e.g. the "া"/"ো" in "কালো") are combining marks
+    # (Unicode category Mc/Mn), not letters, so isalnum() alone is False for
+    # them - which would put a false word boundary in the middle of a
+    # Bangla word. Category "M*" catches those too.
+    return char.isalnum() or unicodedata.category(char).startswith("M")
+
+
+def _word_in(text: str, keyword: str) -> bool:
+    """Whole-word containment, not substring - plain `in` matched "blue"
+    inside "bluetooth" and misfired a colour filter on every bluetooth
+    query, silently narrowing results to whatever happened to be tagged
+    blue. Regex \\b was tried first, but it's driven by \\w, which (per
+    Python's docs) follows str.isalnum() - False for Bangla combining
+    marks - so \\bকালো\\b failed to match "কালো" at all, its own trailing
+    vowel sign reads as a false word boundary. This checks the actual
+    neighbouring characters instead.
+    """
+    start = 0
+    while True:
+        idx = text.find(keyword, start)
+        if idx == -1:
+            return False
+        before_ok = idx == 0 or not _is_word_char(text[idx - 1])
+        end = idx + len(keyword)
+        after_ok = end == len(text) or not _is_word_char(text[end])
+        if before_ok and after_ok:
+            return True
+        start = idx + 1
+
+
 def classify_intent(message: str) -> str:
     text = message.lower()
     for intent, keywords in INTENT_KEYWORDS.items():
@@ -97,17 +134,17 @@ def extract_entities(message: str) -> dict:
     }
 
     for keyword, category in CATEGORY_SYNONYMS.items():
-        if keyword in text:
+        if _word_in(text, keyword):
             entities["category"] = category
             break
 
     for keyword, colour in COLOUR_WORDS.items():
-        if keyword in text:
+        if _word_in(text, keyword):
             entities["colour"] = colour
             break
 
     for brand in KNOWN_BRANDS:
-        if brand.lower() in text:
+        if _word_in(text, brand.lower()):
             entities["brand"] = brand
             break
 

@@ -9,7 +9,7 @@ class ProductPrice extends Model
 {
     protected $fillable = [
         'product_id', 'store_id', 'store_title', 'price', 'delivery_charge',
-        'rating', 'review_count', 'in_stock', 'product_url', 'last_checked_at',
+        'rating', 'review_count', 'in_stock', 'product_url', 'image_url', 'last_checked_at',
     ];
 
     protected $casts = [

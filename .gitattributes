@@ -1,0 +1,7 @@
+# Git for Windows sets core.autocrlf=true globally. Without this file, a
+# checkout on Windows would rewrite start.sh and the Python sources with CRLF
+# endings and break them the next time the project runs on Linux, which is
+# still its primary target. Pin LF for everything, CRLF only for the
+# Windows-native launcher.
+* text=auto eol=lf
+*.ps1 text eol=crlf

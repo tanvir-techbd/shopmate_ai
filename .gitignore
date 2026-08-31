@@ -1,4 +1,5 @@
 ai-service/venv/
+ai-service/.venv/
 ai-service/.env
 ai-service/__pycache__/
 ai-service/app/__pycache__/

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Store extends Model
 {
-    protected $fillable = ['name', 'slug', 'base_url', 'is_active'];
+    protected $fillable = ['name', 'slug', 'base_url', 'is_active', 'origin'];
 
     protected $casts = [
         'is_active' => 'boolean',

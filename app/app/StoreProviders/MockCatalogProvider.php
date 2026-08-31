@@ -8,6 +8,7 @@ class MockCatalogProvider implements StoreProviderInterface
         private readonly string $slug,
         private readonly string $name,
         private readonly ?string $baseUrl,
+        private readonly string $origin = 'domestic',
     ) {
     }
 
@@ -24,6 +25,11 @@ class MockCatalogProvider implements StoreProviderInterface
     public function baseUrl(): ?string
     {
         return $this->baseUrl;
+    }
+
+    public function origin(): string
+    {
+        return $this->origin;
     }
 
     public function fetchListings(): array

@@ -71,6 +71,71 @@ From a product result you can add it to your **Shopping List**, set a
 screen before anything happens — no automated checkout). Ctrl+C in the
 terminal running `start.sh` stops everything.
 
+## Running on Windows
+
+Everything above describes the original Linux/LAMPP machine, which is what
+`start.sh` targets. The project also runs on Windows, where the same pieces
+come from different places:
+
+| Piece | Linux | Windows |
+|---|---|---|
+| MySQL | LAMPP at `/opt/lampp` | XAMPP's MariaDB 10.4 at `C:\xampp` |
+| PHP | system PHP 8.5 | standalone PHP 8.5 in `%USERPROFILE%\tools\php85` |
+| Python venv | `ai-service/venv` | `ai-service/.venv` |
+| Launcher | `./start.sh` | `.\start.bat` |
+
+XAMPP's *own* PHP is 8.2, which `composer.json` (`php: ^8.3`) rejects — so
+PHP is installed separately and XAMPP is used only as the database server.
+
+```powershell
+.\start.bat
+```
+
+Same three processes, same ports, same URLs as `start.sh`. Override paths or
+ports with `$env:PHP_BIN`, `$env:MYSQLD_BIN`, `$env:LARAVEL_PORT`,
+`$env:AI_PORT`.
+
+Use `start.bat`, not `start.ps1` directly. PowerShell's default execution
+policy on Windows 11 is `Restricted`, so `.\start.ps1` fails immediately with
+"running scripts is disabled on this system". `start.bat` runs the same script
+with `-ExecutionPolicy Bypass`, which applies to that one process only — no
+need to loosen the machine's policy. (To run the `.ps1` yourself instead:
+`powershell -ExecutionPolicy Bypass -File .\start.ps1`.)
+
+### First-time Windows setup (documented for re-setup)
+
+```powershell
+# 1. database - XAMPP registers no service, so start mysqld directly
+C:\xampp\mysql\bin\mysqld.exe --defaults-file=C:\xampp\mysql\bin\my.ini --standalone
+C:\xampp\mysql\bin\mysql.exe -u root -h 127.0.0.1 -e "CREATE DATABASE IF NOT EXISTS shopmate_ai"
+
+# 2. Laravel  (vendor/ is gitignored - a fresh clone needs `composer install`
+#    first, which in turn needs Composer installed; an unpacked copy already
+#    has vendor/ and can skip straight to migrating)
+cd app
+& "$env:USERPROFILE\tools\php85\php.exe" artisan migrate
+& "$env:USERPROFILE\tools\php85\php.exe" artisan db:seed
+
+# 3. AI service - separate venv from the Linux one, which stays untouched
+cd ..\ai-service
+py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+### Two Windows-specific gotchas (both already worked around in the repo)
+
+- **Smart App Control** silently blocks freshly-released, low-reputation
+  native DLLs. It blocked scipy 1.18's `_batched_linalg`, which took
+  scikit-learn and therefore the whole AI service down with it — hence the
+  `scipy<1.18` pin in `requirements.txt`. It also blocks `php_curl.dll`, so
+  `ext-curl` is deliberately left out of `php.ini`; Guzzle falls back to its
+  stream handler and nothing in the app depends on curl (`OthobaLiveProvider`
+  uses `file_get_contents` over openssl).
+- **Console encoding**: Windows consoles default to cp1252, which cannot
+  encode the Bangla queries in the Phase 6 results table.
+  `eval/run_evaluation.py` reconfigures stdout to utf-8 so it prints
+  identically on both platforms.
+
 ### Checking for triggered price/stock alerts
 
 Alerts are only evaluated when the check command runs:
@@ -126,7 +191,9 @@ shopmate_ai/
   app/            Laravel app — business logic, DB, chat UI, auth
   ai-service/     FastAPI app — intent/entity parsing, hybrid search, ranking
   docs/           Implementation plan and other project docs
-  start.sh        Launches everything together
+  start.sh        Launches everything together (Linux)
+  start.ps1       Same, for Windows - launch it via start.bat
+  start.bat       Windows entry point (works around the default execution policy)
 ```
 
 ## Re-seeding / resetting data

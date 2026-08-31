@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Console\Commands\Concerns\ImportsFromProviders;
-use App\Services\ProductMatchingService;
+use App\Services\ListingIngestService;
 use App\StoreProviders\MockCatalogProvider;
 use App\StoreProviders\StoreProviderInterface;
 use Illuminate\Console\Attributes\Description;
@@ -28,9 +28,9 @@ class ImportProductsFromProviders extends Command
 {
     use ImportsFromProviders;
 
-    public function handle(ProductMatchingService $matcher): int
+    public function handle(ListingIngestService $ingest): int
     {
-        $this->importFromProviders($this->providers(), $matcher);
+        $this->importFromProviders($this->providers(), $ingest);
 
         return self::SUCCESS;
     }
@@ -44,6 +44,7 @@ class ImportProductsFromProviders extends Command
             new MockCatalogProvider('trendymart-bd', 'TrendyMart BD', 'https://example-trendymart.test'),
             new MockCatalogProvider('quickbazaar', 'QuickBazaar', 'https://example-quickbazaar.test'),
             new MockCatalogProvider('clickbuy-bd', 'ClickBuy BD', 'https://example-clickbuy.test'),
+            new MockCatalogProvider('globaldeals-intl', 'GlobalDeals Express', 'https://example-globaldeals.test', 'international'),
         ];
     }
 }

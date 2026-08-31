@@ -16,14 +16,44 @@ use Illuminate\Support\Collection;
  * no ML model) so it runs instantly on a low-spec laptop - the documented
  * upgrade path is swapping this for embedding-based similarity once TF-IDF
  * search hits the same ceiling (see IMPLEMENTATION_PLAN.md §1).
+ *
+ * Tuned against two different test sets: a clean hand-crafted 3-store mock
+ * fixture (varied phrasing, distinct brands - see
+ * app/StoreProviders/ProviderCatalogFixture.php), and real listings pulled
+ * live from Othoba.com (many SKUs per brand, SEO-stuffed titles). The mock
+ * fixture alone hid a real precision bug: on real data, "Samsung Galaxy
+ * A17" and "Samsung Galaxy A07" - genuinely different phones - scored
+ * above the original 0.55 auto-merge threshold purely on brand match +
+ * generic shared words ("galaxy", "ram", "rom"). The model-code veto and
+ * threshold below exist specifically to fix that without breaking the
+ * mock fixture's validated 100% recall.
  */
 class ProductMatchingService
 {
-    private const AUTO_MERGE_THRESHOLD = 0.55;
+    private const AUTO_MERGE_THRESHOLD = 0.65;
     private const BRAND_MATCH_BOOST = 0.30;
 
+    /**
+     * When neither listing has a usable brand, there's zero corroborating
+     * identity signal beyond raw text - and real generic/unbranded
+     * listings (umbrellas, charging cables, screen protectors from small
+     * sellers) often share so much templated boilerplate phrasing
+     * ("... Magnetic Charging Cable High Quality USB Charger Cable ... for
+     * X Smart Watch (Black)") that plain title overlap alone comfortably
+     * clears 0.65 despite being different products. Require much stronger
+     * evidence in that specific case.
+     */
+    private const NO_BRAND_THRESHOLD = 0.80;
+
     private const STOPWORDS = [
+        // generic connectors
         'the', 'and', 'for', 'with', 'a', 'an', 'by', 'of', 'in', 'to', 'on',
+        // marketing/listing boilerplate - carries no product-identity signal,
+        // but shows up often enough on real listings to inflate similarity
+        // between genuinely different products (e.g. two unrelated phones
+        // both titled "... (Best Price)")
+        'best', 'price', 'new', 'original', 'official', 'genuine', 'offer',
+        'sale', 'hot', 'bangladesh', 'bd', 'buy', 'online', 'shop',
     ];
 
     /**
@@ -38,15 +68,20 @@ class ProductMatchingService
         $best = null;
         $bestScore = 0.0;
 
+        $bestHasBrand = false;
+
         foreach ($candidateProducts as $candidate) {
             $score = $this->similarity($listing, $candidate);
             if ($score > $bestScore) {
                 $bestScore = $score;
                 $best = $candidate;
+                $bestHasBrand = ($listing['brand'] ?? null) && $candidate->brand;
             }
         }
 
-        if ($best !== null && $bestScore >= self::AUTO_MERGE_THRESHOLD) {
+        $threshold = $bestHasBrand ? self::AUTO_MERGE_THRESHOLD : self::NO_BRAND_THRESHOLD;
+
+        if ($best !== null && $bestScore >= $threshold) {
             return $best;
         }
 
@@ -69,6 +104,10 @@ class ProductMatchingService
             return 0.0; // explicitly different named brands: never the same product
         }
 
+        if ($this->modelCodesConflict($listing['title'], $candidate->canonical_title)) {
+            return 0.0; // e.g. "Galaxy A17" vs "Galaxy A07" - same brand, different model
+        }
+
         $titleScore = $this->tokenJaccard($listing['title'], $candidate->canonical_title);
         $brandBoost = $brandsKnownBoth ? self::BRAND_MATCH_BOOST : 0.0;
 
@@ -88,6 +127,34 @@ class ProductMatchingService
         $union = $tokensA->union($tokensB->all())->count();
 
         return $union > 0 ? $intersection / $union : 0.0;
+    }
+
+    /**
+     * Model/variant codes such as "a17", "s24", "c100x" are a strong
+     * identity signal in electronics - letters-then-digits(-then-letters),
+     * which naturally excludes RAM/storage values like "128gb" (those are
+     * digits-first) and plain model *names* like "Eagle"/"Power" (no
+     * digits). If both titles contain at least one such code and none of
+     * theirs match, they're not the same product regardless of brand or
+     * word overlap. If a title has no such code, this never fires.
+     */
+    private function modelCodesConflict(string $a, string $b): bool
+    {
+        $codesA = $this->extractModelCodes($a);
+        $codesB = $this->extractModelCodes($b);
+
+        if ($codesA->isEmpty() || $codesB->isEmpty()) {
+            return false;
+        }
+
+        return $codesA->intersect($codesB)->isEmpty();
+    }
+
+    private function extractModelCodes(string $text): Collection
+    {
+        preg_match_all('/\b[a-z]{1,3}\d{1,3}[a-z]{0,2}\b/i', strtolower($text), $matches);
+
+        return collect($matches[0])->unique()->values();
     }
 
     private function tokenize(string $text): Collection

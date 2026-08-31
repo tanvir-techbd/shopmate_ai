@@ -20,8 +20,8 @@ def fetch_catalog() -> list[dict]:
     )
     prices_sql = text(
         "SELECT pp.id, pp.product_id, pp.store_id, s.name AS store_name, "
-        "pp.store_title, pp.price, pp.delivery_charge, pp.rating, "
-        "pp.review_count, pp.in_stock, pp.product_url "
+        "s.origin AS store_origin, pp.store_title, pp.price, pp.delivery_charge, "
+        "pp.rating, pp.review_count, pp.in_stock, pp.product_url, pp.image_url "
         "FROM product_prices pp JOIN stores s ON s.id = pp.store_id "
         "WHERE s.is_active = 1"
     )

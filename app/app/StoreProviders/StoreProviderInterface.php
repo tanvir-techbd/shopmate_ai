@@ -17,6 +17,16 @@ interface StoreProviderInterface
     public function baseUrl(): ?string;
 
     /**
+     * 'domestic' or 'international' - lets search optionally exclude
+     * cross-border stores per user preference (see
+     * User::include_international_stores and ai-service's
+     * QueryRequest.include_international). Every current provider (the
+     * mock Bangladeshi stores and the real Othoba.com feed) is domestic;
+     * the first international one is the mock GlobalDeals Express fixture.
+     */
+    public function origin(): string;
+
+    /**
      * @return array<int, array{
      *     title: string, price: float, delivery_charge: float,
      *     rating: ?float, review_count: int, in_stock: bool,
